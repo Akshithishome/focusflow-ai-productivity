@@ -171,7 +171,7 @@ function useAuth() {
 
 // Landing Page Component
 function LandingPage() {
-  const { login, register } = useAuth();
+  const { login, register, loginWithGoogle } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState('login');
   const [darkMode, setDarkMode] = useState(false);
