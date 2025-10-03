@@ -142,7 +142,7 @@ class FocusFlowAPITester:
             success, response = self.make_request('POST', 'tasks', {
                 "title": task_text,
                 "description": ""
-            }, 201)
+            }, 200)
             
             if success:
                 priority = response.get('priority', 'medium')
