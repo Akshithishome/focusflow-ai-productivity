@@ -82,19 +82,138 @@ class FocusFlowAPITester:
             return False, {"error": str(e)}
 
     def test_health_check(self):
-        """Test health endpoint"""
+        """Test basic health endpoint"""
         print("\n🔍 Testing Health Check...")
-        success, response = self.run_test(
-            "Health Check",
-            "GET",
-            "health",
-            200
-        )
+        success, response = self.make_request('GET', 'health')
+        self.log_test("Health Check", success, 
+                     "" if success else f"Health endpoint failed: {response}")
         return success
 
     def test_user_registration(self):
         """Test user registration"""
         print("\n🔍 Testing User Registration...")
+        success, response = self.make_request('POST', 'auth/register', {
+            "name": self.test_name,
+            "email": self.test_email,
+            "password": self.test_password
+        })
+        
+        if success and 'access_token' in response:
+            self.token = response['access_token']
+            self.user_id = response.get('user', {}).get('id')
+            self.log_test("User Registration", True)
+        else:
+            self.log_test("User Registration", False, 
+                         f"Registration failed: {response}")
+        
+        return success
+
+    def test_user_login(self):
+        """Test user login with existing credentials"""
+        print("\n🔍 Testing User Login...")
+        success, response = self.make_request('POST', 'auth/login', {
+            "email": self.test_email,
+            "password": self.test_password
+        })
+        
+        if success and 'access_token' in response:
+            self.token = response['access_token']
+            self.user_id = response.get('user', {}).get('id')
+            self.log_test("User Login", True)
+        else:
+            self.log_test("User Login", False, 
+                         f"Login failed: {response}")
+        
+        return success
+
+    def test_ai_priority_parsing_urgent(self):
+        """Test AI priority parsing with urgent keywords - CRITICAL FIX"""
+        print("\n🔍 Testing AI Priority Parsing (Urgent Keywords)...")
+        
+        urgent_tasks = [
+            "Fix critical bug in production ASAP",
+            "Urgent: Call client about contract deadline",
+            "Emergency meeting preparation - critical priority",
+            "Submit report by tomorrow - urgent deadline"
+        ]
+        
+        urgent_detected = 0
+        for task_text in urgent_tasks:
+            success, response = self.make_request('POST', 'tasks', {
+                "title": task_text,
+                "description": ""
+            }, 201)
+            
+            if success:
+                priority = response.get('priority', 'medium')
+                if priority in ['urgent', 'high']:
+                    urgent_detected += 1
+                    print(f"   ✅ '{task_text}' → Priority: {priority}")
+                else:
+                    print(f"   ❌ '{task_text}' → Priority: {priority} (expected urgent/high)")
+                
+                # Store task ID for cleanup
+                if 'id' in response:
+                    self.created_task_ids.append(response['id'])
+        
+        success = urgent_detected >= 3  # At least 3 out of 4 should be detected as urgent/high
+        self.log_test("AI Priority Parsing (Urgent)", success,
+                     f"Detected {urgent_detected}/4 urgent tasks correctly")
+        return success
+
+    def test_schedule_optimization(self):
+        """Test schedule optimization endpoint - CRITICAL FIX"""
+        print("\n🔍 Testing Schedule Optimization (Critical Fix)...")
+        
+        # First create some tasks to optimize
+        test_tasks = [
+            {"title": "Deep work coding session", "description": "Complex algorithm implementation"},
+            {"title": "Review emails and respond", "description": "Administrative task"},
+            {"title": "Urgent client presentation prep", "description": "High priority deadline tomorrow"}
+        ]
+        
+        for task_data in test_tasks:
+            success, response = self.make_request('POST', 'tasks', task_data, 201)
+            if success and 'id' in response:
+                self.created_task_ids.append(response['id'])
+        
+        # Test schedule optimization
+        schedule_data = {
+            "date": datetime.now().strftime("%Y-%m-%d")
+        }
+        
+        success, response = self.make_request('POST', 'schedule/optimize', schedule_data)
+        
+        if success:
+            # Verify response structure
+            required_keys = ['scheduled_tasks', 'focus_patterns', 'recommendations']
+            missing_keys = [key for key in required_keys if key not in response]
+            
+            if missing_keys:
+                self.log_test("Schedule Optimization", False,
+                             f"Missing response keys: {missing_keys}")
+                return False
+            
+            scheduled_tasks = response.get('scheduled_tasks', [])
+            focus_patterns = response.get('focus_patterns', {})
+            recommendations = response.get('recommendations', [])
+            
+            print(f"   ✅ Scheduled {len(scheduled_tasks)} tasks")
+            print(f"   ✅ Focus patterns: {focus_patterns}")
+            print(f"   ✅ Recommendations: {len(recommendations)} items")
+            
+            # Verify no MongoDB ObjectId serialization issues
+            try:
+                json.dumps(response)  # This will fail if ObjectId is present
+                print("   ✅ No ObjectId serialization issues")
+            except TypeError as e:
+                self.log_test("Schedule Optimization", False,
+                             f"ObjectId serialization issue: {e}")
+                return False
+        
+        self.log_test("Schedule Optimization", success,
+                     "" if success else f"Optimization failed: {response}")
+        return success
         timestamp = int(datetime.now().timestamp())
         test_user_data = {
             "name": f"Test User {timestamp}",
