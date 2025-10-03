@@ -417,10 +417,27 @@ async def get_productivity_stats(current_user: User = Depends(get_current_user))
 async def optimize_schedule(schedule_data: ScheduleRequest, current_user: User = Depends(get_current_user)):
     """Get AI-optimized schedule for a specific date"""
     # Get pending tasks
-    tasks = await db.tasks.find({
+    task_docs = await db.tasks.find({
         "user_id": current_user.id,
         "status": "pending"
     }).to_list(100)
+    
+    if not task_docs:
+        return {"scheduled_tasks": [], "recommendations": []}
+    
+    # Convert MongoDB documents to Task objects to handle ObjectId properly
+    tasks = []
+    for task_doc in task_docs:
+        try:
+            # Remove MongoDB's _id field to avoid ObjectId serialization issues
+            if '_id' in task_doc:
+                del task_doc['_id']
+            task = Task(**task_doc)
+            tasks.append(task.dict())
+        except Exception as e:
+            # Skip problematic tasks and log the error
+            print(f"Error converting task: {e}")
+            continue
     
     if not tasks:
         return {"scheduled_tasks": [], "recommendations": []}
