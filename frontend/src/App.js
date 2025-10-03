@@ -16,7 +16,7 @@ import { Textarea } from './components/ui/textarea';
 import { Switch } from './components/ui/switch';
 import { Separator } from './components/ui/separator';
 import { Alert, AlertDescription } from './components/ui/alert';
-import { toast } from 'sonner';
+import { toast, Toaster } from 'sonner';
 
 // Icons from lucide-react
 import { 
