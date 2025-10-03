@@ -376,6 +376,95 @@ async def login(user_data: UserLogin):
     access_token = create_access_token(data={"sub": user.id})
     return {"access_token": access_token, "token_type": "bearer", "user": user}
 
+@api_router.get("/auth/me")
+async def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """Get current authenticated user info"""
+    return current_user
+
+@api_router.post("/auth/google/session")
+async def process_google_session(request: Request, response: Response):
+    """Process Google OAuth session ID and create user session"""
+    session_id = request.headers.get("X-Session-ID")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session ID required")
+    
+    try:
+        # Get user data from Emergent auth service
+        auth_response = requests.get(
+            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            headers={"X-Session-ID": session_id},
+            timeout=10
+        )
+        
+        if auth_response.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid session ID")
+        
+        auth_data = auth_response.json()
+        user_id = auth_data["id"]
+        email = auth_data["email"]
+        name = auth_data["name"]
+        picture = auth_data.get("picture")
+        session_token = auth_data["session_token"]
+        
+        # Check if user exists, create if not
+        existing_user = await db.users.find_one({"email": email})
+        if existing_user:
+            user = User(**existing_user)
+        else:
+            # Create new user
+            user = User(
+                id=user_id,
+                email=email,
+                name=name,
+                picture=picture
+            )
+            await db.users.insert_one(user.dict())
+        
+        # Create session in database
+        session = UserSession(
+            user_id=user.id,
+            session_token=session_token,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7)
+        )
+        await db.user_sessions.insert_one(session.dict())
+        
+        # Set httpOnly cookie
+        response.set_cookie(
+            key="session_token",
+            value=session_token,
+            max_age=7 * 24 * 60 * 60,  # 7 days
+            path="/",
+            secure=True,
+            httponly=True,
+            samesite="none"
+        )
+        
+        return {"user": user, "session_token": session_token}
+        
+    except requests.RequestException:
+        raise HTTPException(status_code=500, detail="Authentication service unavailable")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
+
+@api_router.post("/auth/logout")
+async def logout(request: Request, response: Response):
+    """Logout user and clear session"""
+    session_token = request.cookies.get("session_token")
+    if session_token:
+        # Delete session from database
+        await db.user_sessions.delete_one({"session_token": session_token})
+    
+    # Clear cookie
+    response.delete_cookie(
+        key="session_token",
+        path="/",
+        secure=True,
+        httponly=True,
+        samesite="none"
+    )
+    
+    return {"message": "Logged out successfully"}
+
 # Task Routes
 @api_router.post("/tasks", response_model=Task)
 async def create_task(task_data: TaskCreate, current_user: User = Depends(get_current_user)):
