@@ -139,7 +139,13 @@ function AuthProvider({ children }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await axios.post(`${API}/auth/logout`);
+    } catch (error) {
+      // Continue with logout even if API call fails
+    }
+    
     setUser(null);
     setToken(null);
     localStorage.removeItem('focusflow_token');
