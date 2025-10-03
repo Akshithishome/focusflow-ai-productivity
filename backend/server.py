@@ -127,18 +127,49 @@ def create_access_token(data: dict) -> str:
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_current_user_from_token(token: str) -> Optional[User]:
+    """Helper function to get user from token (JWT or session token)"""
+    # First try session token (Google OAuth)
+    session = await db.user_sessions.find_one({
+        "session_token": token,
+        "expires_at": {"$gt": datetime.now(timezone.utc)}
+    })
+    if session:
+        user = await db.users.find_one({"id": session["user_id"]})
+        if user:
+            return User(**user)
+    
+    # Fallback to JWT token (email/password auth)
     try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id: str = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        user = await db.users.find_one({"id": user_id})
-        if user is None:
-            raise HTTPException(status_code=401, detail="User not found")
-        return User(**user)
+        if user_id:
+            user = await db.users.find_one({"id": user_id})
+            if user:
+                return User(**user)
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        pass
+    
+    return None
+
+async def get_current_user(request: Request):
+    """Get current user from either cookie or Authorization header"""
+    # First check session token from cookie (Google OAuth)
+    session_token = request.cookies.get("session_token")
+    if session_token:
+        user = await get_current_user_from_token(session_token)
+        if user:
+            return user
+    
+    # Fallback to Authorization header (JWT)
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        user = await get_current_user_from_token(token)
+        if user:
+            return user
+    
+    raise HTTPException(status_code=401, detail="Authentication required")
 
 # AI Functions
 async def parse_task_with_ai(task_input: str) -> Dict[str, Any]:
