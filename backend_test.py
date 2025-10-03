@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-FocusFlow Backend API Testing Suite
-Tests all API endpoints including authentication, tasks, focus sessions, and analytics
+FocusFlow MVP Backend Testing Suite
+Testing critical fixes: MongoDB ObjectId serialization and AI priority parsing
 """
 
 import requests
 import sys
 import json
-from datetime import datetime, timezone
 import time
+from datetime import datetime, timezone
+from typing import Dict, Any, List
 
 class FocusFlowAPITester:
     def __init__(self, base_url="https://focusflow-78.preview.emergentagent.com"):
@@ -20,7 +21,11 @@ class FocusFlowAPITester:
         self.tests_passed = 0
         self.test_results = []
         self.created_task_ids = []
-        self.created_session_ids = []
+        
+        # Test user credentials
+        self.test_email = f"test_user_{datetime.now().strftime('%H%M%S')}@focusflow.test"
+        self.test_password = "TestPass123!"
+        self.test_name = "Test User"
 
     def log_test(self, name, success, details="", response_data=None):
         """Log test result"""
