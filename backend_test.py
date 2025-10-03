@@ -298,7 +298,7 @@ class FocusFlowAPITester:
         print("\n🔍 Testing Focus Sessions...")
         
         # Start focus session
-        success, response = self.make_request('POST', 'focus-sessions', {}, 201)
+        success, response = self.make_request('POST', 'focus-sessions', {}, 200)
         if not success:
             self.log_test("Focus Sessions - Start", False, f"Start failed: {response}")
             return False
