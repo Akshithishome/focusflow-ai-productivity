@@ -818,6 +818,7 @@ function RootApp() {
     <BrowserRouter>
       <AuthProvider>
         <App />
+        <Toaster position="top-right" />
       </AuthProvider>
     </BrowserRouter>
   );
