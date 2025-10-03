@@ -27,23 +27,22 @@ class FocusFlowAPITester:
         self.test_password = "TestPass123!"
         self.test_name = "Test User"
 
-    def log_test(self, name, success, details="", response_data=None):
+    def log_test(self, name: str, success: bool, details: str = "", response_data: Any = None):
         """Log test result"""
         self.tests_run += 1
         if success:
             self.tests_passed += 1
-            status = "✅ PASS"
+            print(f"✅ {name}: PASSED")
         else:
-            status = "❌ FAIL"
+            print(f"❌ {name}: FAILED - {details}")
         
-        result = {
+        self.test_results.append({
             "test_name": name,
-            "status": "PASS" if success else "FAIL",
+            "success": success,
             "details": details,
-            "response_data": response_data
-        }
-        self.test_results.append(result)
-        print(f"{status} - {name}: {details}")
+            "response_data": response_data,
+            "timestamp": datetime.now().isoformat()
+        })
 
     def run_test(self, name, method, endpoint, expected_status, data=None, headers=None):
         """Run a single API test"""
