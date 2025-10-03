@@ -23,7 +23,7 @@ class FocusFlowAPITester:
         self.created_task_ids = []
         
         # Test user credentials
-        self.test_email = f"test_user_{datetime.now().strftime('%H%M%S')}@focusflow.test"
+        self.test_email = f"test_user_{datetime.now().strftime('%H%M%S')}@example.com"
         self.test_password = "TestPass123!"
         self.test_name = "Test User"
 
