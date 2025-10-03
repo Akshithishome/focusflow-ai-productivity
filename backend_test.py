@@ -44,44 +44,42 @@ class FocusFlowAPITester:
             "timestamp": datetime.now().isoformat()
         })
 
-    def run_test(self, name, method, endpoint, expected_status, data=None, headers=None):
-        """Run a single API test"""
+    def make_request(self, method: str, endpoint: str, data: Dict = None, expected_status: int = 200) -> tuple:
+        """Make HTTP request and return success status and response"""
         url = f"{self.api_url}/{endpoint}"
-        test_headers = {'Content-Type': 'application/json'}
+        headers = {'Content-Type': 'application/json'}
         
         if self.token:
-            test_headers['Authorization'] = f'Bearer {self.token}'
-        
-        if headers:
-            test_headers.update(headers)
+            headers['Authorization'] = f'Bearer {self.token}'
 
         try:
             if method == 'GET':
-                response = requests.get(url, headers=test_headers, timeout=30)
+                response = requests.get(url, headers=headers, timeout=30)
             elif method == 'POST':
-                response = requests.post(url, json=data, headers=test_headers, timeout=30)
+                response = requests.post(url, json=data, headers=headers, timeout=30)
             elif method == 'PUT':
-                response = requests.put(url, json=data, headers=test_headers, timeout=30)
+                response = requests.put(url, json=data, headers=headers, timeout=30)
             elif method == 'DELETE':
-                response = requests.delete(url, headers=test_headers, timeout=30)
+                response = requests.delete(url, headers=headers, timeout=30)
+            else:
+                return False, {"error": f"Unsupported method: {method}"}
 
             success = response.status_code == expected_status
             
             try:
-                response_json = response.json()
+                response_data = response.json()
             except:
-                response_json = {"raw_response": response.text}
-
-            details = f"Status: {response.status_code} (expected {expected_status})"
+                response_data = {"raw_response": response.text, "status_code": response.status_code}
+            
             if not success:
-                details += f" | Response: {response.text[:200]}"
+                print(f"   Status: {response.status_code} (expected {expected_status})")
+                if response_data:
+                    print(f"   Response: {json.dumps(response_data, indent=2)}")
+            
+            return success, response_data
 
-            self.log_test(name, success, details, response_json)
-            return success, response_json
-
-        except Exception as e:
-            self.log_test(name, False, f"Error: {str(e)}")
-            return False, {}
+        except requests.exceptions.RequestException as e:
+            return False, {"error": str(e)}
 
     def test_health_check(self):
         """Test health endpoint"""
