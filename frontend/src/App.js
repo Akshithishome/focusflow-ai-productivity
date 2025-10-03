@@ -97,14 +97,10 @@ function AuthProvider({ children }) {
     }
   };
 
-  const fetchUserTasks = async () => {
-    try {
-      await axios.get(`${API}/tasks`);
-    } catch (error) {
-      if (error.response?.status === 401) {
-        logout();
-      }
-    }
+  const loginWithGoogle = () => {
+    const redirectUrl = `${window.location.origin}/dashboard`;
+    const googleAuthUrl = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+    window.location.href = googleAuthUrl;
   };
 
   const login = async (email, password) => {
