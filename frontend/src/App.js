@@ -39,13 +39,63 @@ function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (token) {
-      // Verify token and get user data
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      fetchUserTasks(); // This will verify the token
+    checkAuthentication();
+  }, []);
+
+  const checkAuthentication = async () => {
+    try {
+      // Check for Google OAuth session ID in URL fragment
+      const sessionId = getSessionIdFromUrl();
+      if (sessionId) {
+        setLoading(true);
+        await processGoogleSession(sessionId);
+        // Clean URL after processing
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+      }
+
+      // Check existing token or session
+      if (token) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      }
+      
+      // Try to get current user (works with both JWT and session cookies)
+      const response = await axios.get(`${API}/auth/me`);
+      if (response.data) {
+        setUser(response.data);
+      }
+    } catch (error) {
+      // Clear invalid token
+      if (token) {
+        localStorage.removeItem('focusflow_token');
+        setToken(null);
+        delete axios.defaults.headers.common['Authorization'];
+      }
     }
     setLoading(false);
-  }, [token]);
+  };
+
+  const getSessionIdFromUrl = () => {
+    const fragment = window.location.hash.substring(1);
+    const params = new URLSearchParams(fragment);
+    return params.get('session_id');
+  };
+
+  const processGoogleSession = async (sessionId) => {
+    try {
+      const response = await axios.post(`${API}/auth/google/session`, {}, {
+        headers: { 'X-Session-ID': sessionId }
+      });
+      
+      if (response.data && response.data.user) {
+        setUser(response.data.user);
+        toast.success(`Welcome back, ${response.data.user.name}!`);
+      }
+    } catch (error) {
+      toast.error('Authentication failed. Please try again.');
+      throw error;
+    }
+  };
 
   const fetchUserTasks = async () => {
     try {
