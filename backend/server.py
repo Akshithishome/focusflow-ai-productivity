@@ -138,45 +138,100 @@ async def parse_task_with_ai(task_input: str) -> Dict[str, Any]:
         chat = LlmChat(
             api_key=AI_API_KEY,
             session_id=f"task_parser_{datetime.now().timestamp()}",
-            system_message="""You are a task parsing assistant for FocusFlow. Parse user input into structured task data.
+            system_message="""You are an expert task parsing assistant for FocusFlow productivity app. Parse user input into structured task data.
+
+            CRITICAL REQUIREMENTS:
+            - Return ONLY a valid JSON object, no additional text
+            - Accurately identify priority keywords: "urgent", "asap", "critical", "high priority" = urgent
+            - Look for time pressure indicators: "tomorrow", "today", "deadline", "due" = higher priority
+            - Pay special attention to explicit priority words in the input
             
-            Return ONLY a JSON object with these fields:
+            JSON Format:
             {
-                "title": "clear, concise task title",
-                "description": "detailed description if provided", 
-                "priority": "low|medium|high|urgent",
-                "task_type": "shallow|deep",
-                "estimated_duration": minutes_as_number,
-                "due_date": "ISO datetime string or null",
-                "focus_score": float_between_0_and_1
+                "title": "concise task title (remove priority words)",
+                "description": "detailed description if context provided",
+                "priority": "urgent|high|medium|low",
+                "task_type": "deep|shallow",
+                "estimated_duration": minutes_as_integer,
+                "due_date": "ISO_datetime_string_or_null",
+                "focus_score": float_0_to_1
             }
             
-            Guidelines:
-            - deep work: coding, writing, analysis, complex thinking
-            - shallow work: emails, meetings, admin tasks
-            - focus_score: 0.2-0.4 for shallow, 0.6-1.0 for deep work
-            - Parse time expressions like "by tomorrow 2pm", "in 2 hours", "next Friday"
+            Classification Rules:
+            PRIORITY:
+            - urgent: contains "urgent", "asap", "critical", "emergency", time pressure words
+            - high: "important", "priority", "deadline" with near dates
+            - medium: general tasks without urgency indicators  
+            - low: "when possible", "eventually", "someday"
+            
+            TASK_TYPE:
+            - deep: coding, writing, analysis, research, design, complex problem solving
+            - shallow: emails, meetings, calls, administrative tasks, data entry
+            
+            FOCUS_SCORE:
+            - 0.8-1.0: deep work requiring high concentration
+            - 0.5-0.7: moderate concentration tasks
+            - 0.2-0.4: routine/administrative tasks
+            
+            DURATION ESTIMATION:
+            - Simple tasks: 15-30 min
+            - Moderate tasks: 30-120 min  
+            - Complex projects: 120-480 min
             """
         ).with_model("openai", "gpt-4o")
         
-        user_message = UserMessage(text=f"Parse this task: {task_input}")
+        user_message = UserMessage(text=f"Parse this task input: {task_input}")
         response = await chat.send_message(user_message)
         
+        # Clean the response to ensure it's valid JSON
+        cleaned_response = response.strip()
+        if cleaned_response.startswith('```json'):
+            cleaned_response = cleaned_response.replace('```json', '').replace('```', '').strip()
+        
         # Parse AI response as JSON
-        parsed_data = json.loads(response)
-        return parsed_data
+        parsed_data = json.loads(cleaned_response)
+        
+        # Validate required fields and apply defaults if missing
+        validated_data = {
+            "title": parsed_data.get("title", task_input),
+            "description": parsed_data.get("description", ""),
+            "priority": parsed_data.get("priority", "medium"),
+            "task_type": parsed_data.get("task_type", "shallow"),
+            "estimated_duration": int(parsed_data.get("estimated_duration", 30)),
+            "due_date": parsed_data.get("due_date"),
+            "focus_score": float(parsed_data.get("focus_score", 0.5))
+        }
+        
+        return validated_data
         
     except Exception as e:
         logging.error(f"AI task parsing failed: {e}")
-        # Fallback to basic parsing
+        # Enhanced fallback parsing with basic keyword detection
+        priority = "medium"
+        task_type = "shallow"
+        focus_score = 0.5
+        duration = 30
+        
+        # Basic keyword detection for fallback
+        task_lower = task_input.lower()
+        if any(word in task_lower for word in ['urgent', 'asap', 'critical', 'emergency']):
+            priority = "urgent"
+        elif any(word in task_lower for word in ['important', 'high', 'priority']):
+            priority = "high"
+        
+        if any(word in task_lower for word in ['code', 'develop', 'write', 'analyze', 'design']):
+            task_type = "deep"
+            focus_score = 0.8
+            duration = 120
+        
         return {
             "title": task_input,
             "description": "",
-            "priority": "medium",
-            "task_type": "shallow",
-            "estimated_duration": 30,
+            "priority": priority,
+            "task_type": task_type,
+            "estimated_duration": duration,
             "due_date": None,
-            "focus_score": 0.5
+            "focus_score": focus_score
         }
 
 async def analyze_focus_patterns(user_id: str) -> Dict[str, float]:
