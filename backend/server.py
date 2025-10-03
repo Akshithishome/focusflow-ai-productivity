@@ -236,7 +236,18 @@ async def smart_schedule_tasks(user_id: str, tasks: List[Dict]) -> List[Dict]:
         
         return (priority_weights.get(task.get("priority", "medium"), 2) * 10) + (focus_match * 5)
     
-    sorted_tasks = sorted(tasks, key=task_priority_score, reverse=True)
+    # Convert tasks to proper dict format if they contain MongoDB ObjectId
+    clean_tasks = []
+    for task in tasks:
+        if isinstance(task, dict):
+            # Remove MongoDB-specific fields that cause serialization issues
+            clean_task = {k: v for k, v in task.items() if k != '_id'}
+            clean_tasks.append(clean_task)
+        else:
+            # If it's a Pydantic model, convert to dict
+            clean_tasks.append(task.dict() if hasattr(task, 'dict') else dict(task))
+    
+    sorted_tasks = sorted(clean_tasks, key=task_priority_score, reverse=True)
     return sorted_tasks
 
 # Authentication Routes
