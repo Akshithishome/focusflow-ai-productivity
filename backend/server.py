@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Request, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -15,6 +15,7 @@ from passlib.context import CryptContext
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 import json
 import asyncio
+import requests
 
 # Load environment variables
 ROOT_DIR = Path(__file__).parent
